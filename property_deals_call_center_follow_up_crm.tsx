@@ -1,20 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  signInWithCustomToken, 
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot 
-} from 'firebase/firestore';
 import {
   Phone,
   MessageSquare,
@@ -57,36 +41,30 @@ import {
 } from 'lucide-react';
 
 // ==========================================
-// FIREBASE INITIALIZATION
+// LIVE GOOGLE SHEETS WEB APP API URL
 // ==========================================
-const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config
-  ? JSON.parse(__firebase_config)
-  : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'propertydealbd-crm-v1';
+const API_URL = "https://script.google.com/macros/s/AKfycbxyvjO-SOOCyKY8L4sPTx9FjPBb8qIRvz46Inil4PzM6CmYZTfdp5y1yk9ZQ73ixTxF/exec";
 
 // ==========================================
 // CONSTANTS & BUSINESS FUNNEL CONFIGURATION
 // ==========================================
 const DEFAULT_AGENTS = [
-  { id: 'nusrat', name: 'Nusrat', pin: '1111', role: 'agent', avatarColor: 'bg-emerald-600', campaignDefault: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD' },
-  { id: 'jannat', name: 'Jannat', pin: '2222', role: 'agent', avatarColor: 'bg-indigo-600', campaignDefault: 'PD -Jabia-Sniper-$10--NOV8' },
-  { id: 'agent3', name: 'Tanvir', pin: '3333', role: 'agent', avatarColor: 'bg-amber-600', campaignDefault: 'PD_DHAKA_EXEC_SECOND_INNINGS_NOV' },
-  { id: 'admin', name: 'Imtiaz & Boss (Admin)', pin: '9999', role: 'admin', avatarColor: 'bg-slate-900', campaignDefault: 'ALL' }
+  { id: 'nusrat', sheetName: 'Nusrat', name: 'Nusrat', pin: '1111', role: 'agent', avatarColor: 'bg-emerald-600', campaignDefault: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD' },
+  { id: 'jannat', sheetName: 'Jannat', name: 'Jannat', pin: '2222', role: 'agent', avatarColor: 'bg-indigo-600', campaignDefault: 'PD -Jabia-Sniper-$10--NOV8' },
+  { id: 'agent3', sheetName: 'Tanvir', name: 'Tanvir', pin: '3333', role: 'agent', avatarColor: 'bg-amber-600', campaignDefault: 'PD | JABIYA | 10$ | CRORE | 7 JULY' },
+  { id: 'admin', sheetName: 'Admin', name: 'Boss / Admin', pin: '9999', role: 'admin', avatarColor: 'bg-slate-900', campaignDefault: 'ALL' }
 ];
 
+// Exact Statuses Synced Between UI & Google Sheet Column N
 const LEAD_STATUSES = [
-  { id: 'New Lead', label: 'New Lead', queue: 'new', badge: 'bg-blue-100 text-blue-800 border-blue-200', icon: Sparkles },
+  { id: 'New Leads', label: 'New Leads', queue: 'new', badge: 'bg-blue-100 text-blue-800 border-blue-200', icon: Sparkles },
   { id: 'Not Answered', label: 'Not Answered', queue: 'retry', badge: 'bg-orange-100 text-orange-800 border-orange-200', icon: PhoneMissed },
-  { id: 'Busy', label: 'Busy Right Now', queue: 'followup', badge: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock },
+  { id: 'Busy Right Now', label: 'Busy Right Now', queue: 'followup', badge: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock },
   { id: 'Asked to Call Later', label: 'Asked to Call Later', queue: 'followup', badge: 'bg-purple-100 text-purple-800 border-purple-200', icon: Calendar },
   { id: 'Needs Follow-Up', label: 'Needs Follow-Up', queue: 'followup', badge: 'bg-cyan-100 text-cyan-800 border-cyan-200', icon: RefreshCw },
   { id: 'Said Yes to Join Seminar', label: 'Said Yes to Join Seminar', queue: 'seminar', badge: 'bg-emerald-100 text-emerald-800 border-emerald-300', icon: CheckCircle2 },
-  { id: 'Attended Seminar', label: 'Joined Seminar (Attended)', queue: 'converted', badge: 'bg-teal-100 text-teal-900 border-teal-300', icon: UserCheck },
-  { id: 'Converted Partner', label: 'Converted as Paying Partner', queue: 'converted', badge: 'bg-yellow-100 text-yellow-900 border-yellow-400', icon: Award },
+  { id: 'Joined Seminar', label: 'Joined Seminar (Attended)', queue: 'converted', badge: 'bg-teal-100 text-teal-900 border-teal-300', icon: UserCheck },
+  { id: 'Paying Partner', label: 'Converted as Paying Partner', queue: 'converted', badge: 'bg-yellow-100 text-yellow-900 border-yellow-400', icon: Award },
   { id: 'Not Interested', label: 'Not Interested', queue: 'closed', badge: 'bg-rose-100 text-rose-800 border-rose-200', icon: XCircle }
 ];
 
@@ -102,363 +80,79 @@ const DISQUALIFICATION_REASONS = [
 const CAMPAIGNS_LIST = [
   'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
   'PD -Jabia-Sniper-$10--NOV8',
-  'PD_DHAKA_EXEC_SECOND_INNINGS_NOV',
-  'PD_UTTARA_BANANI_INVESTOR_RETARGET'
+  'PD | JABIYA | 10$ | CRORE | 7 JULY',
+  'Property Deal | Nusrat | Crore | 22 June | 5$'
 ];
 
-// Helper to get relative ISO timestamps for realistic overdue/today follow-ups
-const getRelativeDateTime = (hoursOffset) => {
+const getRelativeDateTime = (hoursOffset: number) => {
   const d = new Date(Date.now() + hoursOffset * 3600 * 1000);
-  const pad = (n) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ==========================================
-// INITIAL REALISTIC SEED LEADS (DHAKA COHORT)
-// ==========================================
-const INITIAL_SEED_LEADS = [
-  // NUSRAT LEADS
-  {
-    id: 'lead-101',
-    name: 'Mahmudul Hasan',
-    phone: '+8801711234501',
-    profession: 'AGM, Garments Buying House (Gulshan)',
-    campaign: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
-    assignedTo: 'nusrat',
-    status: 'Asked to Call Later',
-    attempts: 1,
-    nextFollowUp: getRelativeDateTime(-2.5), // OVERDUE!
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'In board meeting at Gulshan-2 office. Asked to call back today afternoon without fail.',
-    history: [
-      { time: 'Yesterday, 4:15 PM', actor: 'Nusrat', action: 'Marked as Asked to Call Later', note: 'In board meeting at Gulshan-2 office. Asked to call back today afternoon.' }
-    ],
-    createdAt: Date.now() - 86400000 * 2
-  },
-  {
-    id: 'lead-102',
-    name: 'Shafiqur Rahman',
-    phone: '+8801819445566',
-    profession: 'Senior Banker, Banani Branch',
-    campaign: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
-    assignedTo: 'nusrat',
-    status: 'Needs Follow-Up',
-    attempts: 2,
-    nextFollowUp: getRelativeDateTime(1.5), // DUE TODAY
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Sent seminar brochure & Mintu Sir video on WhatsApp. Wants to confirm Friday slot after checking family schedule.',
-    history: [
-      { time: 'Yesterday, 11:30 AM', actor: 'Nusrat', action: 'Marked as Needs Follow-Up', note: 'Very interested in 2nd innings real estate commission model. Sent WhatsApp details.' }
-    ],
-    createdAt: Date.now() - 86400000 * 2
-  },
-  {
-    id: 'lead-103',
-    name: 'Engr. Kamrul Islam',
-    phone: '+8801715998877',
-    profession: 'Civil Consultant, Bashundhara',
-    campaign: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
-    assignedTo: 'nusrat',
-    status: 'Said Yes to Join Seminar',
-    attempts: 1,
-    nextFollowUp: getRelativeDateTime(18),
-    rejectionReason: '',
-    seminarReminder24h: true,
-    seminarMorningConfirm: false,
-    lastNote: 'Confirmed seat for this week\'s seminar. Sent Google Maps pin on WhatsApp.',
-    history: [
-      { time: 'Yesterday, 2:10 PM', actor: 'Nusrat', action: 'Marked as Said Yes to Join Seminar', note: 'Booked seat for upcoming seminar. Sent location pin.' }
-    ],
-    createdAt: Date.now() - 86400000 * 3
-  },
-  {
-    id: 'lead-104',
-    name: 'Tariqul Alam',
-    phone: '+8801911223344',
-    profession: 'Pharma Sales Manager, Dhanmondi',
-    campaign: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
-    assignedTo: 'nusrat',
-    status: 'New Lead',
-    attempts: 0,
-    nextFollowUp: '',
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Fresh lead from Meta Lead Form.',
-    history: [],
-    createdAt: Date.now() - 3600000 * 2
-  },
-  {
-    id: 'lead-105',
-    name: 'Ashraful Haque',
-    phone: '+8801677889900',
-    profession: 'IT Project Lead, Mohakhali DOHS',
-    campaign: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
-    assignedTo: 'nusrat',
-    status: 'Not Answered',
-    attempts: 2,
-    nextFollowUp: getRelativeDateTime(2),
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Ringing, no response twice. Sent missed-call SMS/WhatsApp.',
-    history: [
-      { time: 'Today, 10:30 AM', actor: 'Nusrat', action: 'Attempt #2: Not Answered', note: 'No answer on 2nd dial.' },
-      { time: 'Yesterday, 5:00 PM', actor: 'Nusrat', action: 'Attempt #1: Not Answered', note: 'Phone rang out.' }
-    ],
-    createdAt: Date.now() - 86400000
-  },
-  {
-    id: 'lead-106',
-    name: 'Zahirul Kaiyum',
-    phone: '+8801713456789',
-    profession: 'Retired Defense Officer, Baridhara',
-    campaign: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
-    assignedTo: 'nusrat',
-    status: 'Converted Partner',
-    attempts: 3,
-    nextFollowUp: '',
-    rejectionReason: '',
-    seminarReminder24h: true,
-    seminarMorningConfirm: true,
-    lastNote: 'Attended seminar, met Mintu Sir, and paid Partner Package Fee!',
-    history: [
-      { time: 'Last Seminar', actor: 'Nusrat', action: 'Converted as Paying Partner', note: 'Completed registration and paid full partner package fee.' }
-    ],
-    createdAt: Date.now() - 86400000 * 5
-  },
-  {
-    id: 'lead-107',
-    name: 'Mehedi Hasan',
-    phone: '+8801552334455',
-    profession: 'Fresh Graduate, Mirpur',
-    campaign: 'PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD',
-    assignedTo: 'nusrat',
-    status: 'Not Interested',
-    attempts: 1,
-    nextFollowUp: '',
-    rejectionReason: 'Expecting a Salaried Job Opportunity',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Thought the ad was for a fixed-salary office job.',
-    history: [
-      { time: 'Yesterday, 3:05 PM', actor: 'Nusrat', action: 'Marked Not Interested', note: 'Reason: Expecting a Salaried Job Opportunity' }
-    ],
-    createdAt: Date.now() - 86400000 * 2
-  },
+// Normalize statuses coming from Google Sheet
+const normalizeStatus = (rawStatus: string) => {
+  const s = String(rawStatus || 'New Leads').trim();
+  if (s === 'New Lead' || s === 'New Leads' || s === '') return 'New Leads';
+  if (s === 'Busy' || s === 'Busy Right Now') return 'Busy Right Now';
+  if (s === 'Attended Seminar' || s === 'Joined Seminar') return 'Joined Seminar';
+  if (s === 'Converted Partner' || s === 'Paying Partner') return 'Paying Partner';
+  return s;
+};
 
-  // JANNAT LEADS
-  {
-    id: 'lead-201',
-    name: 'Farhana Yasmin',
-    phone: '+8801712987654',
-    profession: 'HR Director, Uttara Sector 7',
-    campaign: 'PD -Jabia-Sniper-$10--NOV8',
-    assignedTo: 'jannat',
-    status: 'Busy',
-    attempts: 1,
-    nextFollowUp: getRelativeDateTime(-1.2), // OVERDUE!
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Was driving on Airport Road. Asked to call back in 2 hours.',
-    history: [
-      { time: 'Today, 11:00 AM', actor: 'Jannat', action: 'Marked as Busy Right Now', note: 'Driving, requested callback after reaching office.' }
-    ],
-    createdAt: Date.now() - 86400000
-  },
-  {
-    id: 'lead-202',
-    name: 'Monirul Islam Chowdhury',
-    phone: '+8801811334499',
-    profession: 'Importer & Trader, Motijheel',
-    campaign: 'PD -Jabia-Sniper-$10--NOV8',
-    assignedTo: 'jannat',
-    status: 'Said Yes to Join Seminar',
-    attempts: 2,
-    nextFollowUp: getRelativeDateTime(20),
-    rejectionReason: '',
-    seminarReminder24h: true,
-    seminarMorningConfirm: true,
-    lastNote: '100% confirmed for seminar. Bringing a colleague along.',
-    history: [
-      { time: 'Yesterday, 6:00 PM', actor: 'Jannat', action: 'Marked as Said Yes to Join Seminar', note: 'Confirmed attendance and received venue address.' }
-    ],
-    createdAt: Date.now() - 86400000 * 3
-  },
-  {
-    id: 'lead-203',
-    name: 'Dr. Touhidul Anwar',
-    phone: '+8801714009988',
-    profession: 'Private Practitioner, Panthapath',
-    campaign: 'PD -Jabia-Sniper-$10--NOV8',
-    assignedTo: 'jannat',
-    status: 'Asked to Call Later',
-    attempts: 1,
-    nextFollowUp: getRelativeDateTime(3), // Due Today
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'In chamber with patients. Call after 8:00 PM tonight.',
-    history: [
-      { time: 'Today, 12:15 PM', actor: 'Jannat', action: 'Marked as Asked to Call Later', note: 'In chamber, requested evening call.' }
-    ],
-    createdAt: Date.now() - 86400000
-  },
-  {
-    id: 'lead-204',
-    name: 'Rezaul Karim',
-    phone: '+8801914556677',
-    profession: 'Telecom Manager, Tejgaon',
-    campaign: 'PD -Jabia-Sniper-$10--NOV8',
-    assignedTo: 'jannat',
-    status: 'New Lead',
-    attempts: 0,
-    nextFollowUp: '',
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Fresh lead assigned to Jannat.',
-    history: [],
-    createdAt: Date.now() - 1800000
-  },
-  {
-    id: 'lead-205',
-    name: 'Syed Nazmul Huda',
-    phone: '+8801716778899',
-    profession: 'Supply Chain Head, Banani',
-    campaign: 'PD -Jabia-Sniper-$10--NOV8',
-    assignedTo: 'jannat',
-    status: 'Attended Seminar',
-    attempts: 2,
-    nextFollowUp: getRelativeDateTime(4),
-    rejectionReason: '',
-    seminarReminder24h: true,
-    seminarMorningConfirm: true,
-    lastNote: 'Attended full seminar session. Following up to close Partner Package fee.',
-    history: [
-      { time: 'Last Seminar', actor: 'Jannat', action: 'Marked as Attended Seminar', note: 'Checked in at seminar registration desk.' }
-    ],
-    createdAt: Date.now() - 86400000 * 4
-  },
-  {
-    id: 'lead-206',
-    name: 'Anisur Rahman',
-    phone: '+8801718990011',
-    profession: 'Corporate Trainer, Niketan',
-    campaign: 'PD -Jabia-Sniper-$10--NOV8',
-    assignedTo: 'jannat',
-    status: 'Converted Partner',
-    attempts: 2,
-    nextFollowUp: '',
-    rejectionReason: '',
-    seminarReminder24h: true,
-    seminarMorningConfirm: true,
-    lastNote: 'Joined seminar & enrolled as Paying Partner immediately.',
-    history: [
-      { time: 'Last Seminar', actor: 'Jannat', action: 'Converted as Paying Partner', note: 'Paid partner onboarding package.' }
-    ],
-    createdAt: Date.now() - 86400000 * 5
-  },
+// Normalize agent assignment coming from Google Sheet
+const normalizeAgentId = (rawAgent: string) => {
+  const a = String(rawAgent || '').trim().toLowerCase();
+  if (a.includes('nusrat')) return 'nusrat';
+  if (a.includes('jannat') || a.includes('jabia') || a.includes('jabiya')) return 'jannat';
+  if (a.includes('tanvir') || a.includes('agent3')) return 'agent3';
+  return 'unassigned';
+};
 
-  // AGENT 3 (TANVIR) LEADS
-  {
-    id: 'lead-301',
-    name: 'Khaled Mahmud',
-    phone: '+8801717665544',
-    profession: 'Merchandising Manager, Uttara',
-    campaign: 'PD_DHAKA_EXEC_SECOND_INNINGS_NOV',
-    assignedTo: 'agent3',
-    status: 'Needs Follow-Up',
-    attempts: 1,
-    nextFollowUp: getRelativeDateTime(-3), // OVERDUE!
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Very keen on earning side commission from his corporate network. Need to lock seminar seat today.',
-    history: [
-      { time: 'Yesterday, 1:40 PM', actor: 'Tanvir', action: 'Marked as Needs Follow-Up', note: 'Has 3 colleagues buying apartments in Dhaka. Wants seminar pass.' }
-    ],
-    createdAt: Date.now() - 86400000 * 2
-  },
-  {
-    id: 'lead-302',
-    name: 'Nasir Uddin Bhuiyan',
-    phone: '+8801817223311',
-    profession: 'Branch Manager, Insurance Co.',
-    campaign: 'PD_DHAKA_EXEC_SECOND_INNINGS_NOV',
-    assignedTo: 'agent3',
-    status: 'Said Yes to Join Seminar',
-    attempts: 1,
-    nextFollowUp: getRelativeDateTime(24),
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Said Yes to join this week\'s seminar. Needs 24h reminder call tomorrow.',
-    history: [
-      { time: 'Today, 10:15 AM', actor: 'Tanvir', action: 'Marked as Said Yes to Join Seminar', note: 'Confirmed seat for seminar.' }
-    ],
-    createdAt: Date.now() - 86400000
-  },
-  {
-    id: 'lead-303',
-    name: 'Hasanul Banna',
-    phone: '+8801611445522',
-    profession: 'Senior Accountant, Mirpur DOHS',
-    campaign: 'PD_DHAKA_EXEC_SECOND_INNINGS_NOV',
-    assignedTo: 'agent3',
-    status: 'Not Answered',
-    attempts: 3,
-    nextFollowUp: getRelativeDateTime(12),
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: '3 unanswered attempts across 2 days. 3-Strike threshold reached.',
-    history: [
-      { time: 'Today, 11:45 AM', actor: 'Tanvir', action: 'Attempt #3: Not Answered', note: 'No answer for 3rd time.' }
-    ],
-    createdAt: Date.now() - 86400000 * 3
-  },
-  {
-    id: 'lead-304',
-    name: 'Sazzad Hossain',
-    phone: '+8801719001122',
-    profession: 'Marketing Lead, Badda',
-    campaign: 'PD_DHAKA_EXEC_SECOND_INNINGS_NOV',
-    assignedTo: 'agent3',
-    status: 'New Lead',
-    attempts: 0,
-    nextFollowUp: '',
-    rejectionReason: '',
-    seminarReminder24h: false,
-    seminarMorningConfirm: false,
-    lastNote: 'Fresh lead from Second Innings campaign.',
-    history: [],
-    createdAt: Date.now() - 900000
-  }
-];
+const agentIdToSheetName = (agentId: string, customAgent3Name: string) => {
+  if (agentId === 'nusrat') return 'Nusrat';
+  if (agentId === 'jannat') return 'Jannat';
+  if (agentId === 'agent3') return customAgent3Name || 'Tanvir';
+  return 'Unassigned';
+};
 
 export default function App() {
   // ==========================================
-  // STATE MANAGEMENT
+  // PERSISTENT LOGIN & PIN MANAGEMENT STATE
   // ==========================================
-  const [user, setUser] = useState(null);
   const [agents, setAgents] = useState(DEFAULT_AGENTS);
-  const [currentAccount, setCurrentAccount] = useState(DEFAULT_AGENTS[3]); // Start on Boss/Admin view with 1-click switcher
-  const [isUnlocked, setIsUnlocked] = useState(true);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState('');
+  const [pins, setPins] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pd_crm_pins');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return { Nusrat: '1111', Jannat: '2222', Tanvir: '3333', Admin: '9999' };
+  });
 
-  // Leads state (synced with Firestore + fallback in-memory)
-  const [leads, setLeads] = useState(INITIAL_SEED_LEADS);
-  const [isCloudSynced, setIsCloudSynced] = useState(false);
+  // Logged-in session persists across browser refreshes
+  const [loggedInRoleKey, setLoggedInRoleKey] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pd_crm_user') || null;
+    }
+    return null;
+  });
+
+  const [loginSelectKey, setLoginSelectKey] = useState<string>('Nusrat');
+  const [pinInput, setPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<string>('');
+
+  // Current viewed workspace (Admin can switch between Agent desks at 1 click; Agents stay in their own desk)
+  const [currentAccount, setCurrentAccount] = useState(DEFAULT_AGENTS[0]);
+
+  // Leads state synced with Master Google Sheet
+  const [leads, setLeads] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [syncBadge, setSyncBadge] = useState<string>('');
 
   // Agent Workspace Filters
-  const [activeAgentTab, setActiveAgentTab] = useState('priority'); // 'priority' | 'new' | 'retry' | 'seminar' | 'all'
+  const [activeAgentTab, setActiveAgentTab] = useState('new'); // 'priority' | 'new' | 'retry' | 'seminar' | 'all'
   const [searchQuery, setSearchQuery] = useState('');
   const [campaignFilter, setCampaignFilter] = useState('ALL');
 
@@ -466,7 +160,7 @@ export default function App() {
   const [activeAdminTab, setActiveAdminTab] = useState('scoreboard'); // 'scoreboard' | 'overdue' | 'campaigns' | 'import' | 'bossreport'
 
   // Modals & Drawers
-  const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedLead, setSelectedLead] = useState<any>(null);
   const [modalStatus, setModalStatus] = useState('');
   const [modalNextFollowUp, setModalNextFollowUp] = useState('');
   const [modalRejectionReason, setModalRejectionReason] = useState('');
@@ -476,92 +170,208 @@ export default function App() {
   // Bulk Import / New Lead Modal
   const [bulkText, setBulkText] = useState('');
   const [bulkCampaign, setBulkCampaign] = useState(CAMPAIGNS_LIST[0]);
-  const [bulkAssignMode, setBulkAssignMode] = useState('round-robin'); // 'round-robin' | 'nusrat' | 'jannat' | 'agent3'
+  const [bulkAssignMode, setBulkAssignMode] = useState('nusrat');
   const [importFeedback, setImportFeedback] = useState('');
 
-  // Cloudflare Guide & Settings Modal
+  // Settings & Spend Inputs for Boss Report
   const [showCloudflareModal, setShowCloudflareModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [customAgent3Name, setCustomAgent3Name] = useState('Tanvir');
   const [copiedReport, setCopiedReport] = useState(false);
 
-  // ==========================================
-  // FIREBASE AUTH & REAL-TIME SYNC
-  // ==========================================
+  const [nusratSpend, setNusratSpend] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('pd_nusrat_spend') || '30.00' : '30.00'
+  );
+  const [jannatSpend, setJannatSpend] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('pd_jannat_spend') || '10.00' : '10.00'
+  );
+
+  // Sync currentAccount when loggedInRoleKey changes
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+    if (!loggedInRoleKey) return;
+    if (loggedInRoleKey === 'Admin') {
+      setCurrentAccount(agents.find((a) => a.id === 'admin') || DEFAULT_AGENTS[3]);
+    } else if (loggedInRoleKey === 'Nusrat') {
+      setCurrentAccount(agents.find((a) => a.id === 'nusrat') || DEFAULT_AGENTS[0]);
+    } else if (loggedInRoleKey === 'Jannat') {
+      setCurrentAccount(agents.find((a) => a.id === 'jannat') || DEFAULT_AGENTS[1]);
+    } else {
+      setCurrentAccount(agents.find((a) => a.id === 'agent3') || DEFAULT_AGENTS[2]);
+    }
+  }, [loggedInRoleKey, agents]);
+
+  // ==========================================
+  // LIVE GOOGLE SHEET FETCH & SYNC ENGINE
+  // ==========================================
+  const fetchCloudPins = () => {
+    fetch(`${API_URL}?action=get_pins&_t=${Date.now()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.pins) {
+          setPins(data.pins);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('pd_crm_pins', JSON.stringify(data.pins));
+          }
         }
-      } catch (err) {
-        console.warn('Running in local preview mode:', err);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
-    return () => unsubscribe();
+      })
+      .catch(() => {});
+  };
+
+  const fetchSheetLeads = () => {
+    if (!loggedInRoleKey) return;
+    setLoading(true);
+    setSyncBadge('⏳ Syncing with Master Sheet...');
+    // Fetch all active cohort leads so Admin and Agent views stay 100% in sync
+    fetch(`${API_URL}?agent=Admin&_t=${Date.now()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.pins) {
+          setPins(data.pins);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('pd_crm_pins', JSON.stringify(data.pins));
+          }
+        }
+        if (data && Array.isArray(data.leads)) {
+          const mapped = data.leads
+            .filter((row: any) => String(row.status || '').trim() !== 'Archived')
+            .map((row: any) => {
+              const normStatus = normalizeStatus(row.status);
+              const profParts = [
+                row.jobTitle ? String(row.jobTitle).trim() : '',
+                row.location ? `📍 ${String(row.location).trim()}` : '',
+                row.seminarInfo ? `🎟️ ${String(row.seminarInfo).trim()}` : ''
+              ].filter(Boolean);
+
+              const createdMs = row.createdTime ? new Date(row.createdTime).getTime() : 0;
+
+              return {
+                id: String(row.id || '').trim(),
+                rowNumber: row.rowNumber,
+                name: String(row.name || 'Prospect').trim(),
+                phone: String(row.phone || '').trim(),
+                profession: profParts.join(' • ') || 'Dhaka Prospect',
+                campaign: String(row.campaign || row.sourceSheet || 'Meta Lead').trim(),
+                assignedTo: normalizeAgentId(row.agent),
+                status: normStatus,
+                attempts: normStatus === 'New Leads' ? 0 : 1,
+                nextFollowUp: row.followUpTime ? String(row.followUpTime) : '',
+                rejectionReason: '',
+                seminarReminder24h: String(row.notes || '').includes('[24h-Pin-Sent]'),
+                seminarMorningConfirm: String(row.notes || '').includes('[Morning-Confirmed]'),
+                lastNote: String(row.notes || '').trim(),
+                createdTime: row.createdTime,
+                createdAt: isNaN(createdMs) ? 0 : createdMs,
+                history: row.notes
+                  ? [
+                      {
+                        time: row.lastUpdated ? formatDateTimeReadable(row.lastUpdated) : 'Recorded in Sheet',
+                        actor: row.agent || 'Agent',
+                        action: normStatus,
+                        note: String(row.notes)
+                      }
+                    ]
+                  : []
+              };
+            })
+            // Sort Newest to Oldest so today's leads are always at the top
+            .sort((a: any, b: any) => (b.createdAt || b.rowNumber || 0) - (a.createdAt || a.rowNumber || 0));
+
+          setLeads(mapped);
+          setSyncBadge(`✅ Synced (${mapped.length} Active Leads)`);
+          setTimeout(() => setSyncBadge(''), 3000);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Error syncing with Master Sheet:', err);
+        setSyncBadge('❌ Sync Error — Check Script Deployment');
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchCloudPins();
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-    const leadsRef = collection(db, 'artifacts', appId, 'public', 'data', 'crm_leads_v1');
+    if (loggedInRoleKey) {
+      fetchSheetLeads();
+    }
+  }, [loggedInRoleKey]);
 
-    const unsubscribe = onSnapshot(
-      leadsRef,
-      async (snapshot) => {
-        if (snapshot.empty) {
-          // Seed initial Dhaka leads so the portal works out of the box
-          for (const item of INITIAL_SEED_LEADS) {
-            try {
-              await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'crm_leads_v1', item.id), {
-                ...item,
-                historyJson: JSON.stringify(item.history || [])
-              });
-            } catch (e) {
-              // Ignore write error in restricted mode
-            }
-          }
-          setIsCloudSynced(true);
+  // Write Lead Update Back to Google Sheet in Real Time
+  const syncLeadToGoogleSheet = (leadId: string, updates: { status?: string; followUpTime?: string; notes?: string; agent?: string }) => {
+    setSyncBadge('⏳ Saving to Master Sheet...');
+    const params = new URLSearchParams({
+      action: 'update',
+      id: leadId,
+      _t: Date.now().toString()
+    });
+    if (updates.status !== undefined) params.append('status', updates.status);
+    if (updates.followUpTime !== undefined) params.append('followUpTime', updates.followUpTime);
+    if (updates.notes !== undefined) params.append('notes', updates.notes);
+    if (updates.agent !== undefined) params.append('agent', updates.agent);
+
+    fetch(`${API_URL}?${params.toString()}`)
+      .then((res) => res.json())
+      .then((result) => {
+        if (result && result.updated > 0) {
+          setSyncBadge(`✅ Saved to Sheet (Row #${result.rowNumber})`);
         } else {
-          const loaded = snapshot.docs.map((d) => {
-            const data = d.data();
-            let parsedHistory = [];
-            try {
-              parsedHistory = data.historyJson ? JSON.parse(data.historyJson) : (data.history || []);
-            } catch (e) {
-              parsedHistory = [];
-            }
-            return { ...data, id: d.id, history: parsedHistory };
-          });
-          loaded.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          setLeads(loaded);
-          setIsCloudSynced(true);
+          fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ id: leadId, ...updates })
+          }).then(() => setSyncBadge('✅ Saved to Sheet'));
         }
-      },
-      (err) => {
-        console.warn('Using local state fallback:', err);
-      }
-    );
+        setTimeout(() => setSyncBadge(''), 3500);
+      })
+      .catch(() => {
+        setSyncBadge('❌ Sync Error — Check Script');
+      });
+  };
 
-    return () => unsubscribe();
-  }, [user]);
+  // ==========================================
+  // LOGIN & LOGOUT HANDLERS
+  // ==========================================
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const expectedPin = String(pins[loginSelectKey] || '').trim();
+    if (String(pinInput).trim() === expectedPin) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('pd_crm_user', loginSelectKey);
+      }
+      setLoggedInRoleKey(loginSelectKey);
+      setPinInput('');
+      setPinError('');
+    } else {
+      setPinError('Incorrect 4-Digit PIN. Please try again.');
+    }
+  };
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('pd_crm_user');
+    }
+    setLoggedInRoleKey(null);
+    setPinInput('');
+    setPinError('');
+  };
 
   // ==========================================
   // HELPER FUNCTIONS
   // ==========================================
-  const isOverdue = (dateStr, status) => {
+  const isOverdue = (dateStr: string, status: string) => {
     if (!dateStr) return false;
-    if (!['Asked to Call Later', 'Busy', 'Needs Follow-Up', 'Not Answered'].includes(status)) return false;
+    if (!['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up', 'Not Answered'].includes(status)) return false;
     const due = new Date(dateStr).getTime();
     return !isNaN(due) && due < Date.now();
   };
 
-  const isDueToday = (dateStr) => {
+  const isDueToday = (dateStr: string) => {
     if (!dateStr) return false;
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
     const now = new Date();
     return (
       d.getFullYear() === now.getFullYear() &&
@@ -570,38 +380,39 @@ export default function App() {
     );
   };
 
-  const formatDateTimeReadable = (dateStr) => {
+  function formatDateTimeReadable(dateStr: string) {
     if (!dateStr) return 'Not scheduled';
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    if (isNaN(d.getTime())) return String(dateStr);
     return d.toLocaleString('en-US', {
+      timeZone: 'Asia/Dhaka',
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
     });
-  };
+  }
 
-  const getAgentName = (agentId) => {
+  const getAgentName = (agentId: string) => {
     const found = agents.find((a) => a.id === agentId);
     return found ? found.name : agentId;
   };
 
-  const getStatusMeta = (statusId) => {
+  const getStatusMeta = (statusId: string) => {
     return LEAD_STATUSES.find((s) => s.id === statusId) || LEAD_STATUSES[0];
   };
 
   // ==========================================
   // LEAD UPDATE & FUNNEL RULES ENGINE
   // ==========================================
-  const openLeadModal = (lead, presetStatus = null) => {
+  const openLeadModal = (lead: any, presetStatus: string | null = null) => {
     setSelectedLead(lead);
     const targetStatus = presetStatus || lead.status;
     setModalStatus(targetStatus);
     setModalNextFollowUp(lead.nextFollowUp || getRelativeDateTime(3));
     setModalRejectionReason(lead.rejectionReason || DISQUALIFICATION_REASONS[0]);
-    setModalNote('');
+    setModalNote(lead.lastNote || '');
     setModalError('');
   };
 
@@ -609,7 +420,7 @@ export default function App() {
     if (!selectedLead) return;
 
     // MANDATORY VALIDATION 1: Follow-Up states require Next Follow-Up Date/Time & Call Note
-    if (['Asked to Call Later', 'Busy', 'Needs Follow-Up'].includes(modalStatus)) {
+    if (['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up'].includes(modalStatus)) {
       if (!modalNextFollowUp) {
         setModalError('Mandatory Rule: You must select a Callback Date & Time before saving this follow-up.');
         return;
@@ -626,16 +437,15 @@ export default function App() {
       return;
     }
 
-    // 3-Strike Auto-Logic for "Not Answered"
     let updatedAttempts = selectedLead.attempts || 0;
     let updatedFollowUp = modalNextFollowUp;
 
     if (modalStatus === 'Not Answered') {
       updatedAttempts += 1;
       if (!updatedFollowUp) {
-        updatedFollowUp = getRelativeDateTime(3); // Auto-schedule +3h retry
+        updatedFollowUp = getRelativeDateTime(3);
       }
-    } else if (selectedLead.status === 'New Lead' && modalStatus !== 'New Lead') {
+    } else if (selectedLead.status === 'New Leads' && modalStatus !== 'New Leads') {
       updatedAttempts = Math.max(1, updatedAttempts);
     }
 
@@ -663,179 +473,100 @@ export default function App() {
     };
 
     const updatedHistory = [newHistoryEntry, ...(selectedLead.history || [])];
+    const cleanFollowUp = ['Not Interested', 'Paying Partner', 'New Leads'].includes(modalStatus)
+      ? ''
+      : updatedFollowUp;
 
     const updatedLead = {
       ...selectedLead,
       status: modalStatus,
       attempts: updatedAttempts,
-      nextFollowUp: ['Not Interested', 'Converted Partner', 'New Lead'].includes(modalStatus)
-        ? ''
-        : updatedFollowUp,
+      nextFollowUp: cleanFollowUp,
       rejectionReason: modalStatus === 'Not Interested' ? modalRejectionReason : '',
       lastNote: noteSummary,
       history: updatedHistory
     };
 
-    // Optimistic local state update
     setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
     setSelectedLead(null);
 
-    // Persist to Firestore
-    if (user) {
-      try {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'crm_leads_v1', updatedLead.id), {
-          ...updatedLead,
-          historyJson: JSON.stringify(updatedHistory)
-        });
-      } catch (e) {
-        console.warn('Firestore update fallback:', e);
-      }
-    }
+    // Sync directly to Google Sheet Master Sheet
+    syncLeadToGoogleSheet(updatedLead.id, {
+      status: modalStatus,
+      followUpTime: cleanFollowUp,
+      notes: noteSummary
+    });
   };
 
-  const toggleSeminarCheck = async (lead, field) => {
+  const toggleSeminarCheck = (lead: any, field: 'seminarReminder24h' | 'seminarMorningConfirm') => {
     const newVal = !lead[field];
-    const nowFormatted = new Date().toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-    const label =
-      field === 'seminarReminder24h'
-        ? '24h Reminder Call & WhatsApp Location Pin Sent'
-        : 'Seminar Morning Final Attendance Confirmed';
+    const tag = field === 'seminarReminder24h' ? '[24h-Pin-Sent]' : '[Morning-Confirmed]';
+    let updatedNote = lead.lastNote || '';
+    if (newVal && !updatedNote.includes(tag)) {
+      updatedNote = `${updatedNote} ${tag}`.trim();
+    } else if (!newVal) {
+      updatedNote = updatedNote.replace(tag, '').trim();
+    }
 
-    const newHistoryEntry = {
-      time: nowFormatted,
-      actor: currentAccount.name,
-      action: newVal ? `Checked: ${label}` : `Unchecked: ${label}`,
-      note: `Pre-seminar verification checklist updated.`
-    };
-
-    const updatedHistory = [newHistoryEntry, ...(lead.history || [])];
     const updatedLead = {
       ...lead,
       [field]: newVal,
-      history: updatedHistory
+      lastNote: updatedNote
     };
 
     setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)));
-
-    if (user) {
-      try {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'crm_leads_v1', lead.id), {
-          ...updatedLead,
-          historyJson: JSON.stringify(updatedHistory)
-        });
-      } catch (e) {
-        console.warn('Checklist sync error:', e);
-      }
-    }
+    syncLeadToGoogleSheet(lead.id, { notes: updatedNote });
   };
 
-  // ==========================================
-  // BULK LEAD IMPORT & ROUND-ROBIN ASSIGNER
-  // ==========================================
-  const handleBulkImport = async () => {
-    if (!bulkText.trim()) return;
-    const lines = bulkText
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    const callerIds = ['nusrat', 'jannat', 'agent3'];
-    const createdLeads = [];
-
-    lines.forEach((line, idx) => {
-      const parts = line.split(/,|\t|\|/).map((p) => p.trim());
-      const name = parts[0] || `Prospect #${leads.length + idx + 1}`;
-      const rawPhone = parts[1] || '+8801700000000';
-      const phone = rawPhone.startsWith('+') ? rawPhone : `+88${rawPhone.replace(/^88/, '')}`;
-      const profession = parts[2] || 'Working Professional (Dhaka)';
-
-      let assignedAgent = bulkAssignMode;
-      if (bulkAssignMode === 'round-robin') {
-        assignedAgent = callerIds[idx % callerIds.length];
-      }
-
-      const newLead = {
-        id: `lead-${Date.now()}-${idx}`,
-        name,
-        phone,
-        profession,
-        campaign: bulkCampaign,
-        assignedTo: assignedAgent,
-        status: 'New Lead',
-        attempts: 0,
-        nextFollowUp: '',
-        rejectionReason: '',
-        seminarReminder24h: false,
-        seminarMorningConfirm: false,
-        lastNote: 'Imported & assigned via Admin Bulk Assigner.',
-        history: [
-          {
-            time: 'Just now',
-            actor: 'Admin',
-            action: `Assigned to ${getAgentName(assignedAgent)}`,
-            note: `Campaign: ${bulkCampaign}`
-          }
-        ],
-        createdAt: Date.now() + idx
-      };
-      createdLeads.push(newLead);
-    });
-
-    setLeads((prev) => [...createdLeads, ...prev]);
-    setBulkText('');
-    setImportFeedback(`Successfully imported & assigned ${createdLeads.length} leads!`);
-    setTimeout(() => setImportFeedback(''), 4000);
-
-    if (user) {
-      for (const item of createdLeads) {
-        try {
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'crm_leads_v1', item.id), {
-            ...item,
-            historyJson: JSON.stringify(item.history)
-          });
-        } catch (e) {
-          // Fallback
-        }
-      }
+  // Save Agent Names & All 4 PINs from Settings Modal
+  const saveSettingsAndPins = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (customAgent3Name.trim()) {
+      setAgents((prev) =>
+        prev.map((a) => (a.id === 'agent3' ? { ...a, name: customAgent3Name.trim() } : a))
+      );
     }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pd_crm_pins', JSON.stringify(pins));
+    }
+    setSyncBadge('⏳ Saving PINs to Cloud...');
+    fetch(`${API_URL}?action=save_pins&pins=${encodeURIComponent(JSON.stringify(pins))}&_t=${Date.now()}`)
+      .then((res) => res.json())
+      .then(() => {
+        setSyncBadge('✅ All Agent PINs Updated!');
+        setTimeout(() => setSyncBadge(''), 3500);
+      })
+      .catch(() => {
+        setSyncBadge('✅ PINs Saved Locally');
+        setTimeout(() => setSyncBadge(''), 3500);
+      });
+    setShowSettingsModal(false);
   };
 
-  // Export CSV for Google Sheets
+  // Export CSV for Backup
   const exportToCSV = () => {
     const headers = [
       'Lead ID',
+      'Sheet Row #',
       'Name',
       'Phone',
       'Profession/Area',
       'Campaign',
       'Assigned Agent',
       'Status',
-      'Call Attempts',
       'Next Follow-Up',
-      '24h Seminar Reminder',
-      'Morning Seminar Confirm',
-      'Rejection Reason',
       'Last Call Note'
     ];
     const rows = leads.map((l) => [
       l.id,
+      l.rowNumber || '',
       `"${(l.name || '').replace(/"/g, '""')}"`,
       l.phone,
       `"${(l.profession || '').replace(/"/g, '""')}"`,
-      `"${l.campaign}"`,
+      `"${(l.campaign || '').replace(/"/g, '""')}"`,
       getAgentName(l.assignedTo),
       l.status,
-      l.attempts,
       l.nextFollowUp || '',
-      l.seminarReminder24h ? 'YES' : 'NO',
-      l.seminarMorningConfirm ? 'YES' : 'NO',
-      `"${(l.rejectionReason || '').replace(/"/g, '""')}"`,
       `"${(l.lastNote || '').replace(/"/g, '""')}"`
     ]);
 
@@ -845,7 +576,7 @@ export default function App() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `PropertyDeals_CallCenter_Leads_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `PropertyDeals_Leads_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -854,35 +585,31 @@ export default function App() {
   // ==========================================
   // COMPUTED METRICS FOR SCOREBOARD & QUEUES
   // ==========================================
-  const calculateStatsForList = (list) => {
+  const calculateStatsForList = (list: any[]) => {
     const total = list.length;
-    const newLeads = list.filter((l) => l.status === 'New Lead').length;
+    const newLeads = list.filter((l) => l.status === 'New Leads').length;
     const notAnswered = list.filter((l) => l.status === 'Not Answered').length;
     const notInterested = list.filter((l) => l.status === 'Not Interested').length;
     const callLater = list.filter((l) => l.status === 'Asked to Call Later').length;
-    const busy = list.filter((l) => l.status === 'Busy').length;
+    const busy = list.filter((l) => l.status === 'Busy Right Now').length;
     const needsFollowUp = list.filter((l) => l.status === 'Needs Follow-Up').length;
 
     const saidYesOnly = list.filter((l) => l.status === 'Said Yes to Join Seminar').length;
-    const attendedOnly = list.filter((l) => l.status === 'Attended Seminar').length;
-    const convertedPartner = list.filter((l) => l.status === 'Converted Partner').length;
+    const attendedOnly = list.filter((l) => l.status === 'Joined Seminar').length;
+    const convertedPartner = list.filter((l) => l.status === 'Paying Partner').length;
 
-    // Cumulative funnel math: Anyone who attended or converted also said yes to the seminar & was contacted
     const totalSaidYesCumulative = saidYesOnly + attendedOnly + convertedPartner;
     const totalAttendedCumulative = attendedOnly + convertedPartner;
 
-    // Contacted = everyone spoken to on the phone (excludes Untouched New Leads and Not Answered)
     const contacted =
       notInterested + callLater + busy + needsFollowUp + totalSaidYesCumulative;
 
-    // Active Follow-Up Pool
     const activeFollowUpPool = callLater + busy + needsFollowUp;
 
-    // Overdue count
     const overdueCount = list.filter((l) => isOverdue(l.nextFollowUp, l.status)).length;
     const dueTodayCount = list.filter(
       (l) =>
-        ['Asked to Call Later', 'Busy', 'Needs Follow-Up'].includes(l.status) &&
+        ['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up'].includes(l.status) &&
         (isOverdue(l.nextFollowUp, l.status) || isDueToday(l.nextFollowUp))
     ).length;
 
@@ -911,7 +638,7 @@ export default function App() {
     };
   };
 
-  const scoreboard = useMemo(() => {
+  const scoreboard: any = useMemo(() => {
     const nusratLeads = leads.filter((l) => l.assignedTo === 'nusrat');
     const jannatLeads = leads.filter((l) => l.assignedTo === 'jannat');
     const agent3Leads = leads.filter((l) => l.assignedTo === 'agent3');
@@ -924,7 +651,6 @@ export default function App() {
     };
   }, [leads]);
 
-  // Filtered Leads for Current Logged-In Agent
   const agentLeads = useMemo(() => {
     const base =
       currentAccount.role === 'admin'
@@ -948,27 +674,26 @@ export default function App() {
     let list = [...agentLeads];
     if (activeAgentTab === 'priority') {
       list = list.filter((l) =>
-        ['Asked to Call Later', 'Busy', 'Needs Follow-Up'].includes(l.status)
+        ['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up'].includes(l.status)
       );
-      // Sort by earliest / most overdue follow-up first
       list.sort((a, b) => {
         const tA = a.nextFollowUp ? new Date(a.nextFollowUp).getTime() : Infinity;
         const tB = b.nextFollowUp ? new Date(b.nextFollowUp).getTime() : Infinity;
         return tA - tB;
       });
     } else if (activeAgentTab === 'new') {
-      list = list.filter((l) => l.status === 'New Lead');
+      list = list.filter((l) => l.status === 'New Leads');
     } else if (activeAgentTab === 'retry') {
       list = list.filter((l) => l.status === 'Not Answered');
     } else if (activeAgentTab === 'seminar') {
       list = list.filter((l) =>
-        ['Said Yes to Join Seminar', 'Attended Seminar', 'Converted Partner'].includes(l.status)
+        ['Said Yes to Join Seminar', 'Joined Seminar', 'Paying Partner'].includes(l.status)
       );
     }
     return list;
   }, [agentLeads, activeAgentTab]);
 
-  // Plain-English Boss Report Text
+  // Plain-English Boss Report Text (With USD Spend & Partner Math)
   const plainLanguageBossReport = useMemo(() => {
     const t = scoreboard.total;
     const n = scoreboard.nusrat;
@@ -976,38 +701,44 @@ export default function App() {
     const a3 = scoreboard.agent3;
     const agent3Name = getAgentName('agent3');
 
-    return `📊 *DAILY CALL CENTER & SEMINAR FOLLOW-UP REPORT*
+    const nSpend = parseFloat(nusratSpend) || 0;
+    const jSpend = parseFloat(jannatSpend) || 0;
+    const totalSpend = nSpend + jSpend;
+    const costPerYes = t.totalSaidYesCumulative > 0 ? (totalSpend / t.totalSaidYesCumulative).toFixed(2) : '0.00';
+    const nCostPerYes = n.totalSaidYesCumulative > 0 ? (nSpend / n.totalSaidYesCumulative).toFixed(2) : '0.00';
+    const jCostPerYes = j.totalSaidYesCumulative > 0 ? (jSpend / j.totalSaidYesCumulative).toFixed(2) : '0.00';
+    const costPerAttendee = t.totalAttendedCumulative > 0 ? (totalSpend / t.totalAttendedCumulative).toFixed(2) : '0.00';
+    const partnerRevenue = (t.convertedPartner * 100).toFixed(2);
+
+    return `📊 *DAILY BUSINESS & SEMINAR REPORT (MAIN ACCOUNT)*
 📅 Date: ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
 
-*1. OVERALL TEAM SUMMARY (3 AGENTS)*
-• Total Leads Assigned: ${t.total}
-• Spoke on Phone (Contacted): ${t.contacted} (${t.contactRate}% Contact Rate)
-• Did Not Answer Phone: ${t.notAnswered}
-• *Said "YES" to Join Seminar:* ${t.totalSaidYesCumulative} People
-• *Active Follow-Up Pool:* ${t.activeFollowUpPool} Warm Leads (${t.callLater} Asked to Call Later, ${t.busy} Busy, ${t.needsFollowUp} Need Follow-Up)
-• Not Interested: ${t.notInterested}
-• *Joined Seminar & Paid Partner Package:* ${t.totalAttendedCumulative} Attended → ${t.convertedPartner} Paying Partners
+*1. MONEY SPENT VS. MONEY MADE (USD)*
+- Total Ad Money Spent: $${totalSpend.toFixed(2)}
+- Converted as Paying Partners ($100 Package Fee): ${t.convertedPartner} Partners ($${partnerRevenue})
 
-*2. AGENT-BY-AGENT BREAKDOWN*
-👤 *Nusrat:*
-• Assigned: ${n.total} | Contacted: ${n.contacted} | Not Answered: ${n.notAnswered}
-• Follow-Up Pool: ${n.activeFollowUpPool} (Call Later: ${n.callLater}, Busy: ${n.busy}, Follow-Up: ${n.needsFollowUp})
-• Said Yes to Seminar: ${n.totalSaidYesCumulative} | Paying Partners: ${n.convertedPartner}
+*2. HOW MANY SAID "YES" TO SEMINAR & WHICH CAMPAIGN*
+- *Total Said "YES" to Join Seminar:* ${t.totalSaidYesCumulative} People (Cost us $${costPerYes} per Yes)
+  1) Nusrat Campaign (PD_LEAD_CRORE-BIZ_ABO_GULSHAN-3MI_NOV1_30USD):
+     Spent $${nSpend.toFixed(2)} → ${n.total} Leads → ${n.totalSaidYesCumulative} Said Yes ($${nCostPerYes} per Yes)
+  2) Jannat Campaign (Jabiya $10 Crore / Sniper):
+     Spent $${jSpend.toFixed(2)} → ${j.total} Leads → ${j.totalSaidYesCumulative} Said Yes ($${jCostPerYes} per Yes)
 
-👤 *Jannat:*
-• Assigned: ${j.total} | Contacted: ${j.contacted} | Not Answered: ${j.notAnswered}
-• Follow-Up Pool: ${j.activeFollowUpPool} (Call Later: ${j.callLater}, Busy: ${j.busy}, Follow-Up: ${j.needsFollowUp})
-• Said Yes to Seminar: ${j.totalSaidYesCumulative} | Paying Partners: ${j.convertedPartner}
+*3. SEMINAR ATTENDANCE & COST TO BRING THEM IN*
+- Actually Joined the Seminar: ${t.totalAttendedCumulative} People
+- Ad Money Spent per Person Who Joined Seminar: $${costPerAttendee}
 
-👤 *${agent3Name}:*
-• Assigned: ${a3.total} | Contacted: ${a3.contacted} | Not Answered: ${a3.notAnswered}
-• Follow-Up Pool: ${a3.activeFollowUpPool} (Call Later: ${a3.callLater}, Busy: ${a3.busy}, Follow-Up: ${a3.needsFollowUp})
-• Said Yes to Seminar: ${a3.totalSaidYesCumulative} | Paying Partners: ${a3.convertedPartner}
+*4. FULL CALL BREAKDOWN (OUT OF ${t.total} ACTIVE LEADS)*
+- Spoke on Phone (Contacted): ${t.contacted} (${t.contactRate}%) | Did Not Answer: ${t.notAnswered} | Untouched New: ${t.newLeads}
+- Said Yes to Join Seminar: ${t.totalSaidYesCumulative}
+- *Active Follow-Up Pool (${t.activeFollowUpPool} Total):* ${t.callLater} Asked to Call Later | ${t.busy} Busy | ${t.needsFollowUp} Need Follow-Up
+- Not Interested: ${t.notInterested}
 
-*3. FOLLOW-UP DISCIPLINE CHECK*
-• Urgent / Overdue Callbacks Being Cleared Now: ${t.overdueCount} leads
-• Pre-Seminar Reminder Calls Completed: ${leads.filter((l) => l.seminarReminder24h).length} guests verified`;
-  }, [scoreboard, leads, agents]);
+*5. AGENT-BY-AGENT CALL SUMMARY*
+- *Nusrat:* ${n.total} Assigned | ${n.newLeads} New | ${n.contacted} Contacted | ${n.activeFollowUpPool} Follow-Up | ${n.totalSaidYesCumulative} Seminar Yes
+- *Jannat:* ${j.total} Assigned | ${j.newLeads} New | ${j.contacted} Contacted | ${j.activeFollowUpPool} Follow-Up | ${j.totalSaidYesCumulative} Seminar Yes
+- *${agent3Name}:* ${a3.total} Assigned | ${a3.newLeads} New | ${a3.contacted} Contacted | ${a3.activeFollowUpPool} Follow-Up | ${a3.totalSaidYesCumulative} Seminar Yes`;
+  }, [scoreboard, nusratSpend, jannatSpend, agents]);
 
   const copyBossReport = () => {
     navigator.clipboard.writeText(plainLanguageBossReport);
@@ -1015,41 +746,83 @@ export default function App() {
     setTimeout(() => setCopiedReport(false), 3000);
   };
 
-  // Role switching handler
-  const handleRoleSwitch = (account) => {
-    setCurrentAccount(account);
-    setIsUnlocked(true);
-    setPinInput('');
-    setPinError('');
-  };
-
-  // WhatsApp pre-filled message generator
-  const getWhatsAppUrl = (lead) => {
-    const cleanPhone = lead.phone.replace(/[^0-9]/g, '');
+  const getWhatsAppUrl = (lead: any) => {
+    const cleanPhone = String(lead.phone || '').replace(/[^0-9]/g, '');
     const text = `আসসালামু আলাইকুম ${lead.name} স্যার, আমি Property Deals BD থেকে ${currentAccount.name} বলছি। চাকরি বা ব্যবসার পাশাপাশি রিয়েল এস্টেট রেফারেল কমিশনের মাধ্যমে মাসিক বাড়তি আয়ের ফ্রি সেমিনারে আপনার আসনটি নিশ্চিত করার জন্য মেসেজ দিচ্ছি।`;
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
   };
 
-  // Update Agent 3 Name
-  const saveCustomAgentName = () => {
-    if (!customAgent3Name.trim()) return;
-    setAgents((prev) =>
-      prev.map((a) => (a.id === 'agent3' ? { ...a, name: customAgent3Name.trim() } : a))
+  // ==========================================
+  // SCREEN 1: PIN LOGIN GATE (PERSISTENT ON REFRESH)
+  // ==========================================
+  if (!loggedInRoleKey) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 border border-slate-200">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-slate-950 mx-auto mb-3 shadow">
+            <Building2 className="w-7 h-7" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-slate-900 text-center">Property Deals BD</h1>
+          <p className="text-xs text-slate-500 text-center mb-6">
+            Call Center & Follow-Up CRM Portal
+          </p>
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
+                Select Your Account
+              </label>
+              <select
+                value={loginSelectKey}
+                onChange={(e) => setLoginSelectKey(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-3 text-sm font-bold text-slate-900 bg-slate-50"
+              >
+                <option value="Nusrat">🎧 Agent 1: Nusrat</option>
+                <option value="Jannat">🎧 Agent 2: Jannat</option>
+                <option value="Tanvir">🎧 Agent 3: {getAgentName('agent3')}</option>
+                <option value="Admin">👑 Boss / Admin</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
+                Enter Security PIN
+              </label>
+              <input
+                type="password"
+                maxLength={8}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                placeholder="••••"
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-3 text-center text-xl tracking-widest font-mono bg-slate-50"
+                required
+              />
+            </div>
+
+            {pinError && (
+              <p className="text-xs font-bold text-rose-600 text-center">{pinError}</p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition"
+            >
+              Login to Workspace
+            </button>
+          </form>
+        </div>
+      </div>
     );
-    if (currentAccount.id === 'agent3') {
-      setCurrentAccount((prev) => ({ ...prev, name: customAgent3Name.trim() }));
-    }
-    setShowSettingsModal(false);
-  };
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ==========================================
-          TOP NAVIGATION & INSTANT ROLE SWITCHER BAR
+          TOP NAVIGATION & ROLE SWITCHER BAR
           ========================================== */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-          {/* Brand Logo & Subdomain Badge */}
+          {/* Brand Logo & Live Sync Status */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center font-bold text-slate-950 shadow-inner">
               <Building2 className="w-6 h-6" />
@@ -1060,73 +833,88 @@ export default function App() {
                   propertydealbd
                 </h1>
                 <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Call Center & Follow-Up CRM
+                  Live Sheet CRM
                 </span>
               </div>
               <p className="text-xs text-slate-400 flex items-center gap-2">
-                <span>Cloudflare Subdomain Ready</span>
-                <span>•</span>
-                <span className="text-emerald-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Live Sync Active
-                </span>
+                {syncBadge ? (
+                  <span className="text-emerald-300 font-bold">{syncBadge}</span>
+                ) : (
+                  <span className="text-emerald-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Connected to Master Google Sheet
+                  </span>
+                )}
               </p>
             </div>
           </div>
 
-          {/* 4-Account Switcher (Nusrat, Jannat, Agent 3, Boss/Admin) */}
-          <div className="flex items-center flex-wrap gap-1.5 bg-slate-800/90 p-1.5 rounded-xl border border-slate-700">
-            <span className="text-[11px] text-slate-400 px-2 font-medium hidden md:inline">
-              Switch Portal Account:
-            </span>
-            {agents.map((acc) => {
-              const active = currentAccount.id === acc.id;
-              const accStats =
-                acc.id === 'admin'
-                  ? scoreboard.total
-                  : scoreboard[acc.id] || { overdueCount: 0 };
-              return (
-                <button
-                  key={acc.id}
-                  onClick={() => handleRoleSwitch(acc)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    active
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                  }`}
-                >
-                  <span>{acc.role === 'admin' ? '👑 Boss / Admin' : `🎧 ${acc.name}`}</span>
-                  {accStats.overdueCount > 0 && (
-                    <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        active ? 'bg-slate-950 text-rose-400' : 'bg-rose-500 text-white'
-                      }`}
-                      title={`${accStats.overdueCount} Overdue Follow-Ups`}
-                    >
-                      {accStats.overdueCount}!
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {/* Account Switcher (Visible to Admin so Boss can inspect any Agent's Queue) */}
+          {loggedInRoleKey === 'Admin' && (
+            <div className="flex items-center flex-wrap gap-1.5 bg-slate-800/90 p-1.5 rounded-xl border border-slate-700">
+              <span className="text-[11px] text-slate-400 px-2 font-medium hidden md:inline">
+                Inspect Desk:
+              </span>
+              {agents.map((acc) => {
+                const active = currentAccount.id === acc.id;
+                const accStats =
+                  acc.id === 'admin'
+                    ? scoreboard.total
+                    : scoreboard[acc.id] || { overdueCount: 0 };
+                return (
+                  <button
+                    key={acc.id}
+                    onClick={() => setCurrentAccount(acc)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      active
+                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    }`}
+                  >
+                    <span>{acc.role === 'admin' ? '👑 Boss / Admin' : `🎧 ${acc.name}`}</span>
+                    {accStats.overdueCount > 0 && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          active ? 'bg-slate-950 text-rose-400' : 'bg-rose-500 text-white'
+                        }`}
+                      >
+                        {accStats.overdueCount}!
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-          {/* Quick Actions (Cloudflare Guide & Settings) */}
+          {/* Quick Actions (Sync, PIN Settings, Logout) */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowSettingsModal(true)}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center gap-1.5"
-              title="Manage Agent Names & PINs"
+              onClick={fetchSheetLeads}
+              className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-bold flex items-center gap-1.5"
+              title="Pull latest leads from Master Google Sheet"
             >
-              <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Agents</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Sync Sheet</span>
             </button>
+
+            {loggedInRoleKey === 'Admin' && (
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                title="Change Representative & Admin PINs"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Manage PINs</span>
+              </button>
+            )}
+
             <button
-              onClick={() => setShowCloudflareModal(true)}
-              className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition"
+              onClick={handleLogout}
+              className="px-3 py-2 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 transition"
             >
-              <Globe className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Free Cloudflare Setup</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Logout</span>
             </button>
           </div>
         </div>
@@ -1141,7 +929,6 @@ export default function App() {
              BOSS / ADMIN COMMAND CENTER VIEW
              ========================================== */
           <div className="space-y-6">
-            {/* Admin Banner & Navigation */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
@@ -1149,15 +936,15 @@ export default function App() {
                     BOSS & ADMIN VIEW
                   </span>
                   <span className="text-xs text-slate-500 font-medium">
-                    Zero Cost Focus • 100% Agent Follow-Up & Seminar Conversion Accountability
+                    Live Connected to Property Deals LEADS Master Sheet
                   </span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                   3-Agent Call Center & Follow-Up Funnel Monitor
                 </h2>
                 <p className="text-sm text-slate-600">
-                  Track every lead assigned to <strong>Nusrat</strong>, <strong>Jannat</strong>, and{' '}
-                  <strong>{getAgentName('agent3')}</strong> across your 8 call outcomes and overdue callbacks.
+                  Track every active lead assigned to <strong>Nusrat</strong>, <strong>Jannat</strong>, and{' '}
+                  <strong>{getAgentName('agent3')}</strong> across your 8 call outcomes.
                 </p>
               </div>
 
@@ -1168,13 +955,6 @@ export default function App() {
                 >
                   <Send className="w-4 h-4" />
                   <span>Plain-English Boss Report</span>
-                </button>
-                <button
-                  onClick={() => setActiveAdminTab('import')}
-                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Assign New Leads</span>
                 </button>
                 <button
                   onClick={exportToCSV}
@@ -1189,7 +969,7 @@ export default function App() {
             {/* Executive Summary KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-medium text-slate-500">Total Leads Assigned</span>
+                <span className="text-xs font-medium text-slate-500">Active Cohort Leads</span>
                 <div className="text-2xl font-extrabold text-slate-900 mt-1">
                   {scoreboard.total.total}
                 </div>
@@ -1235,7 +1015,7 @@ export default function App() {
               </div>
 
               <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
-                <span className="text-xs font-bold text-emerald-800">Said "Yes" to Seminar</span>
+                <span className="text-xs font-bold text-emerald-800">Said &quot;Yes&quot; to Seminar</span>
                 <div className="text-2xl font-extrabold text-emerald-700 mt-1">
                   {scoreboard.total.totalSaidYesCumulative}
                 </div>
@@ -1261,7 +1041,6 @@ export default function App() {
                 { id: 'scoreboard', label: '📊 3-Agent Performance Scoreboard' },
                 { id: 'overdue', label: `🚨 Overdue & Pending Follow-Ups (${scoreboard.total.activeFollowUpPool})` },
                 { id: 'campaigns', label: '🎯 Campaign Seminar Breakdown' },
-                { id: 'import', label: '📥 Bulk Assign Leads to Agents' },
                 { id: 'bossreport', label: '📝 Plain-Language Boss Update' }
               ].map((tab) => (
                 <button
@@ -1287,12 +1066,9 @@ export default function App() {
                       Side-by-Side Call Center Agent Funnel Comparison
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Tracks the exact 8 call statuses requested—Click any agent button at the top to jump into their personal calling queue.
+                      Tracks the exact 8 call statuses synced directly with your Google Sheet Master Sheet.
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-slate-500">
-                    Updated live across all 3 agent accounts
-                  </span>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1317,7 +1093,7 @@ export default function App() {
                     <tbody className="divide-y divide-slate-200">
                       <tr className="hover:bg-slate-50">
                         <td className="py-3 px-5 font-semibold text-slate-900">
-                          1. Total Leads Assigned
+                          1. Total Active Leads Assigned
                         </td>
                         <td className="py-3 px-4 font-bold">{scoreboard.nusrat.total}</td>
                         <td className="py-3 px-4 font-bold">{scoreboard.jannat.total}</td>
@@ -1329,9 +1105,9 @@ export default function App() {
                         <td className="py-3 px-5 text-slate-600 pl-8">
                           • Untouched New Leads (Waiting for 1st Call)
                         </td>
-                        <td className="py-3 px-4 text-blue-700 font-medium">{scoreboard.nusrat.newLeads}</td>
-                        <td className="py-3 px-4 text-blue-700 font-medium">{scoreboard.jannat.newLeads}</td>
-                        <td className="py-3 px-4 text-blue-700 font-medium">{scoreboard.agent3.newLeads}</td>
+                        <td className="py-3 px-4 text-blue-700 font-bold">{scoreboard.nusrat.newLeads}</td>
+                        <td className="py-3 px-4 text-blue-700 font-bold">{scoreboard.jannat.newLeads}</td>
+                        <td className="py-3 px-4 text-blue-700 font-bold">{scoreboard.agent3.newLeads}</td>
                         <td className="py-3 px-5 font-bold text-blue-800 bg-slate-50">{scoreboard.total.newLeads}</td>
                       </tr>
 
@@ -1350,22 +1126,13 @@ export default function App() {
                           3. Successfully Contacted (Spoke on Phone)
                         </td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {scoreboard.nusrat.contacted}{' '}
-                          <span className="text-xs font-normal text-slate-500">
-                            ({scoreboard.nusrat.contactRate}%)
-                          </span>
+                          {scoreboard.nusrat.contacted} ({scoreboard.nusrat.contactRate}%)
                         </td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {scoreboard.jannat.contacted}{' '}
-                          <span className="text-xs font-normal text-slate-500">
-                            ({scoreboard.jannat.contactRate}%)
-                          </span>
+                          {scoreboard.jannat.contacted} ({scoreboard.jannat.contactRate}%)
                         </td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {scoreboard.agent3.contacted}{' '}
-                          <span className="text-xs font-normal text-slate-500">
-                            ({scoreboard.agent3.contactRate}%)
-                          </span>
+                          {scoreboard.agent3.contacted} ({scoreboard.agent3.contactRate}%)
                         </td>
                         <td className="py-3.5 px-5 font-extrabold text-slate-900 bg-slate-100">
                           {scoreboard.total.contacted} ({scoreboard.total.contactRate}%)
@@ -1418,27 +1185,12 @@ export default function App() {
                         </td>
                         <td className="py-3.5 px-4 font-bold text-amber-950">
                           {scoreboard.nusrat.activeFollowUpPool}
-                          {scoreboard.nusrat.overdueCount > 0 && (
-                            <span className="ml-2 px-2 py-0.5 text-[11px] rounded-full bg-rose-600 text-white">
-                              {scoreboard.nusrat.overdueCount} Overdue
-                            </span>
-                          )}
                         </td>
                         <td className="py-3.5 px-4 font-bold text-amber-950">
                           {scoreboard.jannat.activeFollowUpPool}
-                          {scoreboard.jannat.overdueCount > 0 && (
-                            <span className="ml-2 px-2 py-0.5 text-[11px] rounded-full bg-rose-600 text-white">
-                              {scoreboard.jannat.overdueCount} Overdue
-                            </span>
-                          )}
                         </td>
                         <td className="py-3.5 px-4 font-bold text-amber-950">
                           {scoreboard.agent3.activeFollowUpPool}
-                          {scoreboard.agent3.overdueCount > 0 && (
-                            <span className="ml-2 px-2 py-0.5 text-[11px] rounded-full bg-rose-600 text-white">
-                              {scoreboard.agent3.overdueCount} Overdue
-                            </span>
-                          )}
                         </td>
                         <td className="py-3.5 px-5 font-extrabold text-amber-950 bg-amber-100/70">
                           {scoreboard.total.activeFollowUpPool} ({scoreboard.total.overdueCount} Overdue)
@@ -1447,34 +1199,25 @@ export default function App() {
 
                       <tr className="bg-emerald-50/70">
                         <td className="py-3.5 px-5 font-extrabold text-emerald-950">
-                          5. Said "YES" to Join Seminar (Cumulative)
+                          5. Said &quot;YES&quot; to Join Seminar (Cumulative)
                         </td>
                         <td className="py-3.5 px-4 font-extrabold text-emerald-800">
-                          {scoreboard.nusrat.totalSaidYesCumulative}{' '}
-                          <span className="text-xs font-normal text-emerald-700">
-                            ({scoreboard.nusrat.yesRateFromContacted}% of contacted)
-                          </span>
+                          {scoreboard.nusrat.totalSaidYesCumulative}
                         </td>
                         <td className="py-3.5 px-4 font-extrabold text-emerald-800">
-                          {scoreboard.jannat.totalSaidYesCumulative}{' '}
-                          <span className="text-xs font-normal text-emerald-700">
-                            ({scoreboard.jannat.yesRateFromContacted}% of contacted)
-                          </span>
+                          {scoreboard.jannat.totalSaidYesCumulative}
                         </td>
                         <td className="py-3.5 px-4 font-extrabold text-emerald-800">
-                          {scoreboard.agent3.totalSaidYesCumulative}{' '}
-                          <span className="text-xs font-normal text-emerald-700">
-                            ({scoreboard.agent3.yesRateFromContacted}% of contacted)
-                          </span>
+                          {scoreboard.agent3.totalSaidYesCumulative}
                         </td>
                         <td className="py-3.5 px-5 font-extrabold text-emerald-900 bg-emerald-100/80">
-                          {scoreboard.total.totalSaidYesCumulative} ({scoreboard.total.yesRateFromContacted}%)
+                          {scoreboard.total.totalSaidYesCumulative}
                         </td>
                       </tr>
 
                       <tr className="hover:bg-slate-50">
                         <td className="py-3 px-5 font-bold text-teal-900">
-                          6. Actually Walked into Seminar (Attended)
+                          6. Actually Joined Seminar (Attended)
                         </td>
                         <td className="py-3 px-4 font-bold text-teal-800">{scoreboard.nusrat.totalAttendedCumulative}</td>
                         <td className="py-3 px-4 font-bold text-teal-800">{scoreboard.jannat.totalAttendedCumulative}</td>
@@ -1484,7 +1227,7 @@ export default function App() {
 
                       <tr className="bg-yellow-50/90">
                         <td className="py-3.5 px-5 font-extrabold text-yellow-950">
-                          7. Converted as Paying Partner (Paid Package Fee)
+                          7. Converted as Paying Partner ($100 Package Fee)
                         </td>
                         <td className="py-3.5 px-4 font-extrabold text-yellow-900">{scoreboard.nusrat.convertedPartner}</td>
                         <td className="py-3.5 px-4 font-extrabold text-yellow-900">{scoreboard.jannat.convertedPartner}</td>
@@ -1502,28 +1245,15 @@ export default function App() {
             {/* TAB 2: OVERDUE & PENDING FOLLOW-UP MONITOR */}
             {activeAdminTab === 'overdue' && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                      <Flame className="w-5 h-5 text-rose-600" />
-                      <span>Active & Overdue Follow-Up Monitor Across All 3 Agents</span>
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Every lead marked <em>Asked to Call Later</em>, <em>Busy</em>, or <em>Needs Follow-Up</em> is tracked here until the agent calls them back and moves them to Seminar Yes or Not Interested.
-                    </p>
-                  </div>
-                </div>
-
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-rose-600" />
+                  <span>Active & Overdue Follow-Up Monitor Across All 3 Agents</span>
+                </h3>
                 <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
                   {leads
                     .filter((l) =>
-                      ['Asked to Call Later', 'Busy', 'Needs Follow-Up'].includes(l.status)
+                      ['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up'].includes(l.status)
                     )
-                    .sort((a, b) => {
-                      const tA = a.nextFollowUp ? new Date(a.nextFollowUp).getTime() : Infinity;
-                      const tB = b.nextFollowUp ? new Date(b.nextFollowUp).getTime() : Infinity;
-                      return tA - tB;
-                    })
                     .map((lead) => {
                       const overdue = isOverdue(lead.nextFollowUp, lead.status);
                       const statusMeta = getStatusMeta(lead.status);
@@ -1546,31 +1276,18 @@ export default function App() {
                               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-900 text-white">
                                 Assigned: {getAgentName(lead.assignedTo)}
                               </span>
-                              {overdue && (
-                                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-600 text-white animate-pulse">
-                                  OVERDUE CALLBACK!
-                                </span>
-                              )}
                             </div>
                             <p className="text-xs text-slate-600">
-                              <strong>Last Agent Note:</strong> {lead.lastNote}
-                            </p>
-                            <p className="text-[11px] text-slate-500">
-                              Campaign: <span className="font-mono">{lead.campaign}</span> • Scheduled Callback:{' '}
-                              <strong className={overdue ? 'text-rose-700' : 'text-slate-800'}>
-                                {formatDateTimeReadable(lead.nextFollowUp)}
-                              </strong>
+                              <strong>Last Note:</strong> {lead.lastNote || 'None'} •{' '}
+                              <strong>Callback:</strong> {formatDateTimeReadable(lead.nextFollowUp)}
                             </p>
                           </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => openLeadModal(lead)}
-                              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold"
-                            >
-                              Update / Inspect Log
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => openLeadModal(lead)}
+                            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold"
+                          >
+                            Update / Inspect
+                          </button>
                         </div>
                       );
                     })}
@@ -1583,11 +1300,8 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
                   <h3 className="font-bold text-base text-slate-900">
-                    Which Campaign Is Producing Seminar Guests & Paying Partners?
+                    Campaign Seminar Breakdown
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Shows your boss exactly which campaign leads are saying "Yes" to join the seminar and converting into paying partners.
-                  </p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-sm">
@@ -1597,13 +1311,13 @@ export default function App() {
                         <th className="py-3.5 px-4 font-bold">Total Leads</th>
                         <th className="py-3.5 px-4 font-bold">Contacted</th>
                         <th className="py-3.5 px-4 font-bold text-amber-800">In Follow-Up Pool</th>
-                        <th className="py-3.5 px-4 font-bold text-emerald-800">Said "Yes" to Seminar</th>
+                        <th className="py-3.5 px-4 font-bold text-emerald-800">Said &quot;Yes&quot; to Seminar</th>
                         <th className="py-3.5 px-4 font-bold text-teal-800">Joined Seminar</th>
                         <th className="py-3.5 px-4 font-bold text-yellow-900">Paying Partners</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {CAMPAIGNS_LIST.map((camp) => {
+                      {Array.from(new Set(leads.map((l) => l.campaign))).map((camp: any) => {
                         const cLeads = leads.filter((l) => l.campaign === camp);
                         const st = calculateStatsForList(cLeads);
                         return (
@@ -1619,7 +1333,7 @@ export default function App() {
                               {st.activeFollowUpPool}
                             </td>
                             <td className="py-3.5 px-4 font-extrabold text-emerald-700">
-                              {st.totalSaidYesCumulative} ({st.yesRateFromContacted}%)
+                              {st.totalSaidYesCumulative}
                             </td>
                             <td className="py-3.5 px-4 font-bold text-teal-800">
                               {st.totalAttendedCumulative}
@@ -1636,101 +1350,16 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB 4: BULK LEAD ASSIGNER */}
-            {activeAdminTab === 'import' && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    Bulk Assign Campaign Leads to Nusrat, Jannat, or {getAgentName('agent3')}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Paste rows directly from your Meta Lead CSV or Google Sheet (Format: <code>Name, Phone, Area/Profession</code> — one lead per line).
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      1. Select Source Campaign
-                    </label>
-                    <select
-                      value={bulkCampaign}
-                      onChange={(e) => setBulkCampaign(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white"
-                    >
-                      {CAMPAIGNS_LIST.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      2. Assign To Call Center Agent
-                    </label>
-                    <select
-                      value={bulkAssignMode}
-                      onChange={(e) => setBulkAssignMode(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white"
-                    >
-                      <option value="round-robin">
-                        ⚡ Auto-Split Equally (Round-Robin across all 3 Agents)
-                      </option>
-                      <option value="nusrat">🎧 Assign All to Agent 1: Nusrat</option>
-                      <option value="jannat">🎧 Assign All to Agent 2: Jannat</option>
-                      <option value="agent3">🎧 Assign All to Agent 3: {getAgentName('agent3')}</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    3. Paste Leads (Name, Phone, Profession/Location)
-                  </label>
-                  <textarea
-                    rows={5}
-                    value={bulkText}
-                    onChange={(e) => setBulkText(e.target.value)}
-                    placeholder={`Example:\nTanvir Ahmed, +8801711002233, Banker Gulshan\nRafiqul Islam, 01819556677, Garments Director Uttara\nSyed Humayun, 01911443322, Business Owner Dhanmondi`}
-                    className="w-full rounded-xl border border-slate-300 p-3.5 text-sm font-mono"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  {importFeedback ? (
-                    <span className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" />
-                      {importFeedback}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-slate-500">
-                      Leads will immediately appear in the assigned agent&apos;s &quot;New Leads&quot; tab.
-                    </span>
-                  )}
-
-                  <button
-                    onClick={handleBulkImport}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-2 shadow-sm"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Import & Assign Leads Now</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 5: PLAIN-ENGLISH BOSS REPORT GENERATOR */}
+            {/* TAB 4: PLAIN-ENGLISH BOSS REPORT GENERATOR */}
             {activeAdminTab === 'bossreport' && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900">
-                      1-Click Plain-Language Boss Report (WhatsApp Ready)
+                      1-Click Plain-Language Boss Report (USD & WhatsApp Ready)
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Zero technical jargon. Shows your boss exact call counts, follow-up pools, seminar confirmations, and partner conversions by agent.
+                      Zero marketing acronyms. Shows your boss money spent vs. money made, seminar RSVPs by campaign, and full call center outcomes.
                     </p>
                   </div>
                   <button
@@ -1751,6 +1380,39 @@ export default function App() {
                   </button>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Nusrat Campaign Ad Spend ($ USD)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={nusratSpend}
+                      onChange={(e) => {
+                        setNusratSpend(e.target.value);
+                        if (typeof window !== 'undefined') localStorage.setItem('pd_nusrat_spend', e.target.value);
+                      }}
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Jannat Campaign Ad Spend ($ USD)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={jannatSpend}
+                      onChange={(e) => {
+                        setJannatSpend(e.target.value);
+                        if (typeof window !== 'undefined') localStorage.setItem('pd_jannat_spend', e.target.value);
+                      }}
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-bold"
+                    />
+                  </div>
+                </div>
+
                 <pre className="bg-slate-900 text-slate-100 p-5 rounded-2xl text-xs sm:text-sm font-mono whitespace-pre-wrap leading-relaxed overflow-x-auto border border-slate-800">
                   {plainLanguageBossReport}
                 </pre>
@@ -1759,10 +1421,9 @@ export default function App() {
           </div>
         ) : (
           /* ==========================================
-             CALL CENTER AGENT WORKSPACE VIEW (NUSRAT / JANNAT / AGENT 3)
+             CALL CENTER AGENT WORKSPACE VIEW (NUSRAT / JANNAT / TANVIR)
              ========================================== */
           <div className="space-y-6">
-            {/* Agent Welcome Header & Personal KPI Strip */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="flex items-center gap-3.5">
                 <div
@@ -1776,22 +1437,20 @@ export default function App() {
                       {currentAccount.name}&apos;s Calling & Follow-Up Desk
                     </h2>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                      Active Shift
+                      Newest Leads First
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Rule: Always clear your <strong>Overdue & Due Today Follow-Ups</strong> first before dialing untouched leads.
+                    Every status update automatically saves to your row in the Master Google Sheet.
                   </p>
                 </div>
               </div>
 
-              {/* Agent Personal KPIs */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <div className="px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200">
                   <span className="text-[11px] font-bold text-rose-700 block">Due / Overdue</span>
                   <span className="text-lg font-extrabold text-rose-700">
-                    {agentStats.dueTodayCount}{' '}
-                    <span className="text-[11px] font-normal">({agentStats.overdueCount} late)</span>
+                    {agentStats.dueTodayCount}
                   </span>
                 </div>
 
@@ -1826,20 +1485,20 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
                   {
-                    id: 'priority',
-                    label: '🔥 1. Priority Follow-Up Queue',
-                    count: agentStats.activeFollowUpPool,
-                    badgeColor: 'bg-rose-600 text-white'
-                  },
-                  {
                     id: 'new',
-                    label: '🆕 2. New Leads (To Call)',
+                    label: '🆕 1. New Leads (To Call)',
                     count: agentStats.newLeads,
                     badgeColor: 'bg-blue-600 text-white'
                   },
                   {
+                    id: 'priority',
+                    label: '🔥 2. Priority Follow-Up Queue',
+                    count: agentStats.activeFollowUpPool,
+                    badgeColor: 'bg-rose-600 text-white'
+                  },
+                  {
                     id: 'retry',
-                    label: '🔄 3. Not Answered (3-Strike Retry)',
+                    label: '🔄 3. Not Answered (Retry)',
                     count: agentStats.notAnswered,
                     badgeColor: 'bg-orange-600 text-white'
                   },
@@ -1877,7 +1536,6 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Search Box */}
               <div className="relative min-w-[220px]">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -1899,7 +1557,7 @@ export default function App() {
                     This Queue Is All Clear!
                   </h3>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    No leads waiting in this bucket right now. Switch to another funnel queue tab above to continue calling.
+                    No leads waiting in this bucket right now. Switch to another funnel queue tab above or click Sync Sheet.
                   </p>
                 </div>
               ) : (
@@ -1918,7 +1576,6 @@ export default function App() {
                       }`}
                     >
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                        {/* Left Column: Lead Identity & Status */}
                         <div className="space-y-1.5 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-bold text-slate-900">{lead.name}</h3>
@@ -1930,31 +1587,9 @@ export default function App() {
                             >
                               {lead.status}
                             </span>
-
-                            {lead.attempts > 0 && (
-                              <span
-                                className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
-                                  lead.status === 'Not Answered' && lead.attempts >= 3
-                                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                                    : 'bg-slate-100 text-slate-600'
-                                }`}
-                              >
-                                {lead.status === 'Not Answered'
-                                  ? `Retry Strike ${lead.attempts}/3`
-                                  : `${lead.attempts} Call(s)`}
-                              </span>
-                            )}
-
-                            {overdue && (
-                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-600 text-white flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3" />
-                                OVERDUE: {formatDateTimeReadable(lead.nextFollowUp)}
-                              </span>
-                            )}
-
-                            {!overdue && dueToday && lead.nextFollowUp && (
-                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950">
-                                Due Today: {formatDateTimeReadable(lead.nextFollowUp)}
+                            {lead.rowNumber && (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 bg-slate-100 rounded text-slate-500">
+                                Row #{lead.rowNumber} • {formatDateTimeReadable(lead.createdTime)}
                               </span>
                             )}
                           </div>
@@ -1964,7 +1599,6 @@ export default function App() {
                             Campaign: <span className="font-mono text-[11px]">{lead.campaign}</span>
                           </p>
 
-                          {/* Last Call Note & Next Action Box */}
                           <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/80 text-xs text-slate-700 flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <span className="font-bold text-slate-900">Last Note: </span>
@@ -1977,13 +1611,12 @@ export default function App() {
                             )}
                           </div>
 
-                          {/* Pre-Seminar Verification Checklist (Only shown if Said Yes / Attended) */}
-                          {['Said Yes to Join Seminar', 'Attended Seminar', 'Converted Partner'].includes(
+                          {['Said Yes to Join Seminar', 'Joined Seminar', 'Paying Partner'].includes(
                             lead.status
                           ) && (
                             <div className="pt-2 flex flex-wrap items-center gap-3">
                               <span className="text-xs font-bold text-emerald-900">
-                                Seminar Show-Up Protection Checklist:
+                                Seminar Show-Up Checklist:
                               </span>
                               <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
                                 <input
@@ -2008,7 +1641,6 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Right Column: 1-Click Call, WhatsApp & Fast Status Marking */}
                         <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end justify-between gap-2.5 shrink-0">
                           <div className="flex items-center gap-2">
                             <a
@@ -2038,11 +1670,10 @@ export default function App() {
                             </button>
                           </div>
 
-                          {/* Quick 1-Click Outcome Pills */}
                           <div className="flex flex-wrap items-center gap-1">
                             {[
                               { label: 'No Answer', status: 'Not Answered', style: 'hover:bg-orange-100 text-orange-800 border-orange-200' },
-                              { label: 'Busy', status: 'Busy', style: 'hover:bg-amber-100 text-amber-800 border-amber-200' },
+                              { label: 'Busy', status: 'Busy Right Now', style: 'hover:bg-amber-100 text-amber-800 border-amber-200' },
                               { label: 'Call Later', status: 'Asked to Call Later', style: 'hover:bg-purple-100 text-purple-800 border-purple-200' },
                               { label: 'Follow-Up', status: 'Needs Follow-Up', style: 'hover:bg-cyan-100 text-cyan-800 border-cyan-200' },
                               { label: '✅ Seminar YES', status: 'Said Yes to Join Seminar', style: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 font-bold' },
@@ -2074,11 +1705,10 @@ export default function App() {
       {selectedLead && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8">
-            {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">
-                  Update Call Outcome & Follow-Up Funnel
+                  Update Call Outcome & Sync to Master Sheet (Row #{selectedLead.rowNumber})
                 </span>
                 <h3 className="text-lg font-bold">
                   {selectedLead.name} ({selectedLead.phone})
@@ -2093,13 +1723,12 @@ export default function App() {
             </div>
 
             <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-              {/* Step 1: Select Exact Call Status */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
-                  1. Select Call Outcome (The 8 Exact Funnel Parameters)
+                  1. Select Call Outcome
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {LEAD_STATUSES.filter((s) => s.id !== 'New Lead').map((st) => {
+                  {LEAD_STATUSES.filter((s) => s.id !== 'New Leads').map((st) => {
                     const active = modalStatus === st.id;
                     return (
                       <button
@@ -2129,15 +1758,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dynamic Mandatory Fields Based on Status */}
-              {['Asked to Call Later', 'Busy', 'Needs Follow-Up', 'Not Answered', 'Said Yes to Join Seminar'].includes(
+              {['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up', 'Not Answered', 'Said Yes to Join Seminar'].includes(
                 modalStatus
               ) && (
                 <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-amber-950">
-                      ⏰ Next Follow-Up / Reminder Date & Time{' '}
-                      {['Asked to Call Later', 'Busy', 'Needs Follow-Up'].includes(modalStatus) && (
+                      ⏰ Next Follow-Up Date & Time{' '}
+                      {['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up'].includes(modalStatus) && (
                         <span className="text-rose-600">* (MANDATORY)</span>
                       )}
                     </label>
@@ -2167,7 +1795,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Mandatory Disqualification Dropdown if "Not Interested" */}
               {modalStatus === 'Not Interested' && (
                 <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 space-y-2">
                   <label className="block text-xs font-bold text-rose-900">
@@ -2187,11 +1814,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* Call Notes Input */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Call Summary / Conversation Note{' '}
-                  {['Asked to Call Later', 'Busy', 'Needs Follow-Up'].includes(modalStatus) && (
+                  {['Asked to Call Later', 'Busy Right Now', 'Needs Follow-Up'].includes(modalStatus) && (
                     <span className="text-rose-600">* (Required for Follow-Up)</span>
                   )}
                 </label>
@@ -2199,7 +1825,7 @@ export default function App() {
                   rows={3}
                   value={modalNote}
                   onChange={(e) => setModalNote(e.target.value)}
-                  placeholder="Write what the prospect said (e.g., 'In office meeting, asked to call at 7 PM', or 'Confirmed Friday seminar, wants WhatsApp location')..."
+                  placeholder="Write what the prospect said..."
                   className="w-full rounded-xl border border-slate-300 p-3 text-sm"
                 />
               </div>
@@ -2210,36 +1836,8 @@ export default function App() {
                   <span>{modalError}</span>
                 </div>
               )}
-
-              {/* Call Touchpoint History Log */}
-              <div className="border-t border-slate-200 pt-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                  <History className="w-3.5 h-3.5" />
-                  <span>Lead Audit & Touchpoint History</span>
-                </h4>
-                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                  {(selectedLead.history || []).length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No previous call logs yet.</p>
-                  ) : (
-                    selectedLead.history.map((h, i) => (
-                      <div
-                        key={i}
-                        className="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-start justify-between gap-2"
-                      >
-                        <div>
-                          <span className="font-bold text-slate-900">{h.actor}</span> —{' '}
-                          <span className="font-semibold text-indigo-700">{h.action}</span>
-                          <p className="text-slate-600 mt-0.5">{h.note}</p>
-                        </div>
-                        <span className="text-[10px] text-slate-400 shrink-0">{h.time}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
               <button
                 type="button"
@@ -2253,7 +1851,7 @@ export default function App() {
                 onClick={saveLeadDisposition}
                 className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm"
               >
-                Save Call Outcome & Update Queue
+                Save Outcome & Sync to Sheet
               </button>
             </div>
           </div>
@@ -2261,81 +1859,13 @@ export default function App() {
       )}
 
       {/* ==========================================
-          MODAL 2: FREE CLOUDFLARE SUBDOMAIN DEPLOYMENT GUIDE
-          ========================================== */}
-      {showCloudflareModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8">
-            <div className="px-6 py-4 bg-indigo-950 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Globe className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-base font-bold">
-                  How to Host This Portal on Your Free Cloudflare Subdomain ($0/Month)
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowCloudflareModal(false)}
-                className="text-slate-300 hover:text-white"
-              >
-                <XCircle className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed">
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-medium">
-                ✅ <strong>100% Free Forever:</strong> Cloudflare Pages gives you unlimited bandwidth, free SSL, and instant custom subdomains (like <code>crm.propertydealbd.com</code>) at $0 cost.
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <h4 className="font-bold text-slate-900">
-                    Step 1: Push This Single-File React App to a Free GitHub Repo (or Direct Upload)
-                  </h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    In your Cloudflare Dashboard, go to <strong>Workers & Pages → Create Application → Pages → Upload Assets</strong> (or connect a free GitHub repository containing this React file).
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <h4 className="font-bold text-slate-900">
-                    Step 2: Connect Your Subdomain (<code>crm.propertydealbd.com</code>)
-                  </h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Inside your Cloudflare Pages project, click <strong>Custom Domains → Set up a custom domain</strong> and type <code>crm.propertydealbd.com</code>. Cloudflare automatically creates the DNS CNAME record and issues a free SSL certificate in 30 seconds.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <h4 className="font-bold text-slate-900">
-                    Step 3: Share Logins with Nusrat, Jannat, {getAgentName('agent3')} & Your Boss
-                  </h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    All 3 agents can open <code>crm.propertydealbd.com</code> on their phone or office PC. Every status change, callback time, and note updates in real time on your Boss Dashboard, and you can export to your Google Sheet with 1 click anytime.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => setShowCloudflareModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold"
-              >
-                Got It
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ==========================================
-          MODAL 3: CUSTOMIZE 3RD AGENT NAME & SETTINGS
+          MODAL 2: LIVE PIN & AGENT SETTINGS MANAGER
           ========================================== */}
       {showSettingsModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden">
             <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-              <h3 className="text-base font-bold">Call Center Agent Settings</h3>
+              <h3 className="text-base font-bold">🔐 Manage Representative PINs & Names</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
                 className="text-slate-400 hover:text-white"
@@ -2344,59 +1874,53 @@ export default function App() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Agent 1 Name (Fixed)
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value="Nusrat (PIN: 1111)"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm text-slate-600"
-                />
+            <form onSubmit={saveSettingsAndPins} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {(['Nusrat', 'Jannat', 'Tanvir', 'Admin'] as const).map((roleKey) => (
+                  <div key={roleKey} className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {roleKey} PIN
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={8}
+                      value={pins[roleKey] || ''}
+                      onChange={(e) => setPins({ ...pins, [roleKey]: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-center font-mono font-bold text-sm bg-white"
+                      required
+                    />
+                  </div>
+                ))}
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Agent 2 Name (Fixed)
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value="Jannat (PIN: 2222)"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm text-slate-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Agent 3 Name (Editable — PIN: 3333)
+                  Agent 3 Display Name
                 </label>
                 <input
                   type="text"
                   value={customAgent3Name}
                   onChange={(e) => setCustomAgent3Name(e.target.value)}
-                  placeholder="Enter 3rd Agent Name"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-900"
                 />
               </div>
-            </div>
 
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveCustomAgentName}
-                className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"
-              >
-                Save Agent Name
-              </button>
-            </div>
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm"
+                >
+                  💾 Save PINs to Cloud
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
